@@ -7,6 +7,7 @@ format: html
 library(httr2)
 library(jsonlite)
 library(dplyr)
+library(purrr)
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 ```
 
@@ -15,51 +16,74 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 # 🚀 AI Repository Explorer {.dashboard-title .neon-flicker}
 
 ```{r fetch-github-repos}
-# Fetch AI repositories from GitHub
+# Fetch AI repositories from GitHub API
 fetch_ai_repos <- function() {
   tryCatch({
     res <- request("https://api.github.com/search/repositories") %>%
       req_url_query(
-        q = "AI machine learning language:python OR language:javascript OR language:typescript OR language:r", 
-        sort = "updated", 
+        q = "AI machine learning deep learning neural network language:python OR language:javascript OR language:typescript", 
+        sort = "stars", 
+        order = "desc",
         per_page = 50
       ) %>%
       req_perform() %>%
       resp_body_json()
     
-    ai_repos <- res$items %>%
-      lapply(function(item) {
-        list(
-          full_name = item$full_name %||% "Unknown",
-          html_url = item$html_url %||% "",
-          description = item$description %||% "No description available",
-          stargazers_count = item$stargazers_count %||% 0,
-          language = item$language %||% "Unknown",
-          updated_at = item$updated_at %||% "",
-          default_branch = item$default_branch %||% "main"
-        )
-      }) %>%
-      bind_rows()
+    # Convert to proper data frame
+    items_df <- data.frame()
+    for(item in res$items) {
+      row <- data.frame(
+        full_name = ifelse(is.null(item$full_name), "Unknown", item$full_name),
+        html_url = ifelse(is.null(item$html_url), "", item$html_url),
+        description = ifelse(is.null(item$description), "No description available", item$description),
+        stargazers_count = ifelse(is.null(item$stargazers_count), 0, as.numeric(item$stargazers_count)),
+        language = ifelse(is.null(item$language), "Unknown", item$language),
+        updated_at = ifelse(is.null(item$updated_at), "", item$updated_at),
+        default_branch = ifelse(is.null(item$default_branch), "main", item$default_branch),
+        stringsAsFactors = FALSE
+      )
+      items_df <- rbind(items_df, row)
+    }
     
-    return(ai_repos)
+    return(items_df)
   }, error = function(e) {
     # Fallback data in case of API issues
     data.frame(
-      full_name = c("openai/gpt-4", "huggingface/transformers", "microsoft/LightGBM", "tensorflow/tensorflow", "pytorch/pytorch"),
-      html_url = c("https://github.com/openai/gpt-4", "https://github.com/huggingface/transformers", "https://github.com/microsoft/LightGBM", "https://github.com/tensorflow/tensorflow", "https://github.com/pytorch/pytorch"),
-      description = c("GPT-4 model repository", "State-of-the-art Natural Language Processing", "Gradient boosting framework", "An Open Source Machine Learning Framework", "Tensors and Dynamic neural networks"),
-      stargazers_count = c(15000, 45000, 12000, 185000, 82000),
-      language = c("Python", "Python", "Python", "C++", "Python"),
-      updated_at = c("2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"),
-      default_branch = c("main", "main", "master", "master", "main")
+      full_name = c("tensorflow/tensorflow", "pytorch/pytorch", "huggingface/transformers", "microsoft/DeepSpeed", "openai/whisper", 
+                    "microsoft/LightGBM", "scikit-learn/scikit-learn", "google/jax", "Lightning-AI/pytorch-lightning", "apache/spark"),
+      html_url = c("https://github.com/tensorflow/tensorflow", "https://github.com/pytorch/pytorch", "https://github.com/huggingface/transformers", 
+                   "https://github.com/microsoft/DeepSpeed", "https://github.com/openai/whisper", "https://github.com/microsoft/LightGBM",
+                   "https://github.com/scikit-learn/scikit-learn", "https://github.com/google/jax", "https://github.com/Lightning-AI/pytorch-lightning",
+                   "https://github.com/apache/spark"),
+      description = c("An Open Source Machine Learning Framework for Everyone", 
+                      "Tensors and Dynamic neural networks in Python", 
+                      "🤗 Transformers: State-of-the-art Machine Learning for Pytorch, TensorFlow, and JAX", 
+                      "DeepSpeed is a deep learning optimization library that makes distributed training and inference easy", 
+                      "Robust Speech Recognition via Large-Scale Weak Supervision",
+                      "A fast, distributed, high performance gradient boosting framework",
+                      "scikit-learn: machine learning in Python",
+                      "Composable transformations of Python+NumPy programs",
+                      "PyTorch Lightning is the deep learning framework for professional AI researchers",
+                      "Apache Spark - A unified analytics engine for large-scale data processing"),
+      stargazers_count = c(185000, 82000, 133000, 35000, 69000, 16000, 59000, 30000, 28000, 39000),
+      language = c("C++", "Python", "Python", "Python", "Python", "Python", "Python", "Python", "Python", "Scala"),
+      updated_at = c("2024-09-06", "2024-09-06", "2024-09-06", "2024-09-06", "2024-09-06",
+                     "2024-09-06", "2024-09-06", "2024-09-06", "2024-09-06", "2024-09-06"),
+      default_branch = c("master", "main", "main", "master", "main", "master", "main", "main", "master", "master"),
+      stringsAsFactors = FALSE
     )
   })
 }
 
 ai_repos <- fetch_ai_repos()
 
-# Pass data to Observable JS
-ojs_define(ai_repos_data = ai_repos)
+# Sort by stars (highest first)
+ai_repos <- ai_repos[order(-ai_repos$stargazers_count), ]
+
+# Limit to top 50 for display performance
+if(nrow(ai_repos) > 50) {
+  ai_repos <- ai_repos[1:50, ]
+}
 ```
 
 <div class="row">
@@ -67,142 +91,81 @@ ojs_define(ai_repos_data = ai_repos)
 
 ::: {.card .neon-glow}
 ::: {.card-header}
-🎯 **Select an AI Repository**
+🌟 **Top 50 AI Repositories on GitHub**
 :::
 ::: {.card-body}
 
-```{ojs}
-// Create repository selector
-viewof selected_repo = Inputs.select(
-  ai_repos_data.map(d => d.full_name), 
-  {
-    label: "Choose a repository to explore:",
-    value: ai_repos_data[0]?.full_name || "huggingface/transformers"
+```{r display-repos}
+# Create a responsive repository grid
+create_repo_card <- function(repo, index) {
+  stars_formatted <- format(repo$stargazers_count, big.mark = ",")
+  description_short <- if(nchar(repo$description) > 120) {
+    paste0(substr(repo$description, 1, 120), "...")
+  } else {
+    repo$description
   }
-)
-```
-
-:::
-:::
-
-</div>
-</div>
-
-<div class="row mt-4">
-<div class="col-md-6">
-
-::: {.card .neon-glow}
-::: {.card-header}
-📊 **Repository Details**
-:::
-::: {.card-body}
-
-```{ojs}
-// Display selected repository details
-{
-  const repo = ai_repos_data.find(d => d.full_name === selected_repo);
-  if (repo) {
-    return html`
-      <div class="repo-item">
-        <h5 class="repo-name">🔥 ${repo.full_name}</h5>
-        <p class="repo-description">📝 ${repo.description || 'No description available'}</p>
-        <div class="mb-3">
-          <span class="repo-stars">⭐ ${repo.stargazers_count?.toLocaleString() || 0} stars</span> | 
-          <span style="color: #00ffff;">🔧 ${repo.language || 'Unknown'}</span>
+  
+  readme_url <- paste0("https://github.com/", repo$full_name, "/blob/", repo$default_branch, "/README.md")
+  
+  card_html <- sprintf('
+  <div class="repo-item mb-4" style="border: 2px solid #8b00ff; border-radius: 10px; padding: 1.5rem; background: linear-gradient(135deg, rgba(0,0,0,0.8), rgba(26,10,26,0.6)); backdrop-filter: blur(10px); transition: all 0.3s ease;" 
+       onmouseover="this.style.borderColor=\'#ff00ff\'; this.style.boxShadow=\'0 0 20px rgba(255, 0, 255, 0.4)\';" 
+       onmouseout="this.style.borderColor=\'#8b00ff\'; this.style.boxShadow=\'none\';">
+    <div class="row">
+      <div class="col-md-8">
+        <div class="repo-rank" style="color: #ff6600; font-family: \'Orbitron\', monospace; font-weight: 900; font-size: 1.2rem; margin-bottom: 0.5rem;">
+          #%d
         </div>
-        <div>
-          <a href="${repo.html_url}" target="_blank" class="btn btn-primary me-2">
+        <div class="repo-name" style="color: #00ff41; font-family: \'Orbitron\', monospace; font-weight: 700; font-size: 1.3rem; margin-bottom: 0.8rem; text-shadow: 0 0 10px #00ff41;">
+          🔥 %s
+        </div>
+        <div class="repo-description" style="color: #00ffff; font-size: 1rem; margin-bottom: 1rem; line-height: 1.4;">
+          📝 %s
+        </div>
+        <div class="repo-stats" style="margin-bottom: 1rem;">
+          <span class="repo-stars" style="color: #ff6600; font-family: \'Source Code Pro\', monospace; font-weight: 600; margin-right: 1rem;">
+            ⭐ %s stars
+          </span>
+          <span style="color: #8b00ff; font-family: \'Source Code Pro\', monospace; font-weight: 500;">
+            🔧 %s
+          </span>
+        </div>
+        <div class="repo-actions">
+          <a href="%s" target="_blank" class="btn btn-primary me-2" style="background: linear-gradient(45deg, #ff00ff, #8b00ff); border: none; box-shadow: 0 0 15px rgba(255, 0, 255, 0.3); font-family: \'Orbitron\', monospace; font-weight: 500; text-transform: uppercase;">
             🚀 Visit Repository
           </a>
-          <a href="${repo.html_url}/blob/${repo.default_branch || 'main'}/README.md" target="_blank" class="btn btn-outline-info">
+          <a href="%s" target="_blank" class="btn btn-outline-info" style="border-color: #00ffff; color: #00ffff; font-family: \'Orbitron\', monospace; font-weight: 500;">
             📖 View README
           </a>
         </div>
       </div>
-    `;
-  }
-  return html`<div class="text-center">Select a repository to view details</div>`;
-}
-```
-
-:::
-:::
-
-::: {.card .neon-glow .mt-4}
-::: {.card-header}
-🌟 **Top AI Repositories**
-:::
-::: {.card-body}
-
-```{ojs}
-// Display repository list
-{
-  const sortedRepos = ai_repos_data
-    .sort((a, b) => (b.stargazers_count || 0) - (a.stargazers_count || 0))
-    .slice(0, 10);
-    
-  return html`
-    <div style="max-height: 400px; overflow-y: auto;">
-      ${sortedRepos.map((repo, index) => html`
-        <div class="repo-item mb-3" style="cursor: pointer; border: 1px solid #8b00ff; padding: 1rem; border-radius: 8px; background: rgba(0,0,0,0.6);" 
-             onclick="${() => { selected_repo = repo.full_name; }}">
-          <div style="display: flex; justify-content: space-between; align-items: start;">
-            <div style="flex: 1;">
-              <div class="repo-name" style="color: #00ff41; font-weight: bold; margin-bottom: 0.5rem;">
-                ${index + 1}. ${repo.full_name}
-              </div>
-              <div class="repo-description" style="color: #00ffff; font-size: 0.9rem; margin-bottom: 0.5rem;">
-                ${(repo.description || 'No description').substring(0, 120)}${(repo.description || '').length > 120 ? '...' : ''}
-              </div>
-              <div class="repo-stars" style="color: #ff6600; font-weight: 600;">
-                ⭐ ${(repo.stargazers_count || 0).toLocaleString()} | 🔧 ${repo.language || 'Unknown'}
-              </div>
-            </div>
+      <div class="col-md-4">
+        <div style="text-align: center; padding: 1rem;">
+          <div style="color: #ff00ff; font-family: \'Orbitron\', monospace; font-weight: 700; font-size: 2rem; text-shadow: 0 0 15px #ff00ff; margin-bottom: 0.5rem;">
+            ⭐
+          </div>
+          <div style="color: #00ff41; font-family: \'Source Code Pro\', monospace; font-weight: 600; font-size: 1.5rem;">
+            %s
+          </div>
+          <div style="color: #00ffff; font-size: 0.9rem; margin-top: 0.5rem;">
+            GitHub Stars
           </div>
         </div>
-      `)}
-    </div>
-  `;
-}
-```
-
-:::
-:::
-
-</div>
-<div class="col-md-6">
-
-::: {.card .neon-glow}
-::: {.card-header}
-📖 **README Preview**
-:::
-::: {.card-body}
-
-```{ojs}
-// Generate README URL and display iframe
-{
-  const repo = ai_repos_data.find(d => d.full_name === selected_repo);
-  const branch = repo?.default_branch || 'main';
-  const github_url = `https://github.com/${selected_repo}/blob/${branch}/README.md`;
-  
-  return html`
-    <div>
-      <div style="margin-bottom: 1rem; text-align: center;">
-        <a href="${github_url}" target="_blank" class="btn btn-primary">
-          📖 View Full README on GitHub
-        </a>
       </div>
-      <iframe 
-        src="${github_url}" 
-        width="100%" 
-        height="600px" 
-        style="border: 2px solid #00ffff; border-radius: 10px; background: white;"
-        sandbox="allow-same-origin allow-scripts allow-popups allow-forms">
-        <p>Your browser does not support iframes. <a href="${github_url}" target="_blank">Click here to view the README</a></p>
-      </iframe>
     </div>
-  `;
+  </div>
+  ', index, repo$full_name, description_short, stars_formatted, repo$language, repo$html_url, readme_url, stars_formatted)
+  
+  return(card_html)
 }
+
+# Generate all repository cards
+repo_count <- nrow(ai_repos)
+repo_cards <- character(repo_count)
+for(i in 1:repo_count) {
+  repo_cards[i] <- create_repo_card(ai_repos[i, ], i)
+}
+cat(paste(repo_cards, collapse = "\n"))
 ```
 
 :::
@@ -220,9 +183,18 @@ viewof selected_repo = Inputs.select(
 :::
 ::: {.card-body}
 <div class="text-center">
-This dashboard automatically updates daily at 8:00 AM ET with the latest trending AI repositories from GitHub.
-<br>
-<small class="text-muted">Last updated: `r Sys.time()` | Data source: GitHub API</small>
+  <div style="color: #00ff41; font-family: 'Orbitron', monospace; font-weight: 700; font-size: 1.2rem; margin-bottom: 1rem;">
+    ⚡ LIVE DASHBOARD ⚡
+  </div>
+  <div style="color: #00ffff; margin-bottom: 0.5rem;">
+    This dashboard automatically updates <strong style="color: #ff00ff;">daily at 8:00 AM ET</strong> with the latest trending AI repositories from GitHub.
+  </div>
+  <div style="color: #8b00ff; font-size: 0.9rem;">
+    <strong>Last updated:</strong> `r Sys.time()` | <strong>Data source:</strong> GitHub API
+  </div>
+  <div style="color: #ff6600; font-size: 0.9rem; margin-top: 0.5rem;">
+    <strong>Repositories shown:</strong> Top `r nrow(ai_repos)` AI & ML projects by stars
+  </div>
 </div>
 :::
 :::
@@ -231,3 +203,46 @@ This dashboard automatically updates daily at 8:00 AM ET with the latest trendin
 </div>
 
 </div>
+
+<style>
+/* Additional interactive enhancements */
+.repo-item:hover {
+  transform: translateY(-5px);
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+}
+
+/* Animated background grid */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+  pointer-events: none;
+  z-index: -1;
+  animation: grid-move 20s linear infinite;
+}
+
+@keyframes grid-move {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(50px, 50px); }
+}
+
+/* Glowing text animation */
+.dashboard-title {
+  animation: neon-pulse 3s ease-in-out infinite alternate;
+}
+
+@keyframes neon-pulse {
+  0% { text-shadow: 0 0 10px #ff00ff, 0 0 20px #ff00ff, 0 0 30px #ff00ff; }
+  100% { text-shadow: 0 0 20px #ff00ff, 0 0 30px #ff00ff, 0 0 40px #ff00ff; }
+}
+</style>
