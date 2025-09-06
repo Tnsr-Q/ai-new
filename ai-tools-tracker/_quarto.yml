@@ -1,0 +1,29 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "🤖 AI Tools Tracker"
+  description: "Daily-updated dashboard tracking the hottest AI repositories on GitHub"
+  favicon: images/neon-ai.svg
+  navbar:
+    style: dark
+    background: "#0a0a0a"
+    search: false
+    left:
+      - href: index.qmd
+        text: "🏠 Dashboard"
+        
+format:
+  html:
+    theme: [cosmo, custom.scss]
+    css: styles.css
+    toc: false
+    smooth-scroll: true
+    link-external-newwindow: true
+    
+execute:
+  freeze: auto
+
+
+
