@@ -1,0 +1,28 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.Renviron
+.DS_Store
+
+# Quarto
+/.quarto/
+_site/
+*_files/
+
+# renv
+renv/library/
+renv/python/
+renv/staging/
+
+# IDE
+.vscode/
+*.Rproj
+
+# Logs
+*.log
+
+# Temporary files
+*~
+.#*
+.DS_Store
