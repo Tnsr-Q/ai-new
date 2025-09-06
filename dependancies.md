@@ -1,4 +1,3 @@
-# Fairlight Copilot-Quarto System Requirements
 # This file lists the external system dependencies required for this project.
 # 
 # NOTE: This project primarily uses Node.js and R, not Python.
